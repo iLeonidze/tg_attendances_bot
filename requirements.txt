@@ -1,0 +1,4 @@
+python-telegram-bot[job-queue]>=21.0,<22.0 # Use the latest stable v21.x
+pandas>=2.0.0,<3.0.0
+openpyxl>=3.1.0,<3.2.0 # Required by pandas for .xlsx files
+python-dotenv>=1.0.0,<2.0.0 # Optional: For loading .env files if you use them

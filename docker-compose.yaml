@@ -1,0 +1,11 @@
+version: '3'
+services:
+  tg_attendances_bot:
+    image: ghcr.io/ileonidze/tg_attendances_bot:latest
+    container_name: tg_attendances_bot
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: 1234567890:AAAAA_AAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+      ALLOWED_USER_IDS: 11111111,222222222
+    volumes:
+      - ./data:/app/data
