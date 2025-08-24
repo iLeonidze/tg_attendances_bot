@@ -220,26 +220,27 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     # --- Callback Data Routing ---
     current_date_str = utils.get_current_date_str()
-    parts = query.data.split(":", 2)
+    parts = query.data.split(":")
     prefix = parts[0]
 
     try:
         if prefix == "group_select":
-            group_name = parts[1]
-            await handle_group_selection(update, context, group_name, current_date_str)
+            group_index = int(parts[1])
+            await handle_group_selection(update, context, group_index, current_date_str)
 
         elif prefix == "attendance_toggle":
-            # Unpack group and child name safely
+            # Unpack group and child indices safely
             if len(parts) < 3:
                 logger.error("Invalid callback data for toggle: %s", query.data)
                 return
-            group_name, child_name = parts[1], parts[2]
-            await handle_toggle_attendance(update, context, group_name, child_name,
+            group_index = int(parts[1])
+            child_index = int(parts[2])
+            await handle_toggle_attendance(update, context, group_index, child_index,
                                            current_date_str)
 
         elif prefix == "attendance_save":
-            group_name = parts[1]
-            await handle_save_attendance(update, context, group_name, current_date_str)
+            group_index = int(parts[1])
+            await handle_save_attendance(update, context, group_index, current_date_str)
 
         else:
             logger.warning("Unhandled callback prefix: %s", prefix)
@@ -253,10 +254,16 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def handle_group_selection(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, group_name: str, date_str: str
+    update: Update, context: ContextTypes.DEFAULT_TYPE, group_index: int, date_str: str
 ) -> None:
     """Handles selection of a group to mark attendance."""
     query = update.callback_query
+    groups = data_manager.get_groups()
+    if group_index >= len(groups):
+        logger.error("Invalid group index %s", group_index)
+        return
+    group_name = groups[group_index]
+
     children = data_manager.get_children_for_group(group_name)
     if not children:
         if query and query.message:
@@ -264,7 +271,7 @@ async def handle_group_selection(
         return
 
     present_children = data_manager.get_attendance_for_day_group(date_str, group_name)
-    keyboard = keyboards.generate_attendance_keyboard(group_name, children, present_children)
+    keyboard = keyboards.generate_attendance_keyboard(group_index, group_name, children, present_children)
 
     if query and query.message:
         await query.edit_message_text(
@@ -274,10 +281,23 @@ async def handle_group_selection(
 
 
 async def handle_toggle_attendance(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, group_name: str, child_name: str, date_str: str
+    update: Update, context: ContextTypes.DEFAULT_TYPE, group_index: int, child_index: int, date_str: str
 ) -> None:
     """Handles toggling the attendance status of a child."""
     query = update.callback_query
+
+    groups = data_manager.get_groups()
+    if group_index >= len(groups):
+        logger.error("Invalid group index %s", group_index)
+        return
+    group_name = groups[group_index]
+
+    children = data_manager.get_children_for_group(group_name)
+    if child_index >= len(children):
+        logger.error("Invalid child index %s for group %s", child_index, group_name)
+        return
+    child_name = children[child_index]
+
     present_children = data_manager.get_attendance_for_day_group(date_str, group_name)
 
     if child_name in present_children:
@@ -288,9 +308,8 @@ async def handle_toggle_attendance(
         logger.info("User marked %s in %s for %s", child_name, group_name, date_str)
 
     # Important: Refresh the keyboard with the updated state
-    children = data_manager.get_children_for_group(group_name)
     updated_present_children = data_manager.get_attendance_for_day_group(date_str, group_name)
-    keyboard = keyboards.generate_attendance_keyboard(group_name, children, updated_present_children)
+    keyboard = keyboards.generate_attendance_keyboard(group_index, group_name, children, updated_present_children)
 
     if query and query.message:
         # Avoid errors if the message content hasn't actually changed
@@ -302,15 +321,20 @@ async def handle_toggle_attendance(
 
 
 async def handle_save_attendance(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, group_name: str, date_str: str
+    update: Update, context: ContextTypes.DEFAULT_TYPE, group_index: int, date_str: str
 ) -> None:
     """Handles saving the attendance for the day."""
     query = update.callback_query
+    groups = data_manager.get_groups()
+    if group_index >= len(groups):
+        logger.error("Invalid group index %s", group_index)
+        return
+    group_name = groups[group_index]
+
     if data_manager.save_attendance():
         logger.info("Attendance saved successfully for %s.", date_str)
         if query and query.message:
             # Optionally, provide a way back to group selection or just confirm
-            groups = data_manager.get_groups()
             keyboard = keyboards.generate_group_selection_keyboard(groups) # Show groups again
             await query.edit_message_text(
                 text=f"✅ Посещаемость для группы '{group_name}' на {date_str} сохранена.\n"
