@@ -255,6 +255,13 @@ class DataManager:
             # Ensure date columns are sorted correctly
             df = df[recorded_dates_sorted]
 
+            # Calculate monthly and total attendance for each child
+            months = [pd.to_datetime(d).strftime('%Y-%m') for d in recorded_dates_sorted]
+            unique_months = list(dict.fromkeys(months))
+            monthly_sums = df.groupby(months, axis=1).sum()
+            monthly_sums = monthly_sums[unique_months]
+            total_sum = df.sum(axis=1)
+            df = pd.concat([df, monthly_sums, total_sum.rename('Итого')], axis=1)
 
             report_filename = f"attendance_report_{end_date.strftime('%Y%m%d')}_last_{days}d.xlsx"
             report_filepath = os.path.join(config.REPORTS_DIR, report_filename)
