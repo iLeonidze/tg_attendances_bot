@@ -238,6 +238,8 @@ class DataManager:
     def generate_attendance_report(self, days: int) -> Optional[str]:
         """
         Generates an Excel report for attendance over the last N days.
+        The report contains daily attendance, monthly totals, and an overall
+        total for each child.
 
         Args:
             days: The number of days back from today to include in the report.
@@ -310,6 +312,20 @@ class DataManager:
             # Ensure date columns are sorted correctly
             df = df[recorded_dates_sorted]
 
+            # Calculate monthly and total attendance for each child
+            date_objects = [pd.to_datetime(d) for d in recorded_dates_sorted]
+            month_to_dates: Dict[str, List[str]] = defaultdict(list)
+            for obj, date_str in zip(date_objects, recorded_dates_sorted):
+                month_label = obj.strftime("%Y-%m")
+                month_to_dates[month_label].append(date_str)
+
+            monthly_columns: List[str] = []
+            for month_label in sorted(month_to_dates.keys()):
+                df[month_label] = df[month_to_dates[month_label]].sum(axis=1)
+                monthly_columns.append(month_label)
+
+            df["Итого"] = df[recorded_dates_sorted].sum(axis=1)
+            df = df[recorded_dates_sorted + monthly_columns + ["Итого"]]
 
             report_filename = f"attendance_report_{end_date.strftime('%Y%m%d')}_last_{days}d.xlsx"
             report_filepath = os.path.join(config.REPORTS_DIR, report_filename)
