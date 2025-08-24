@@ -16,6 +16,7 @@ from telegram.ext import (
     filters,
 )
 from telegram.constants import ParseMode
+from telegram.helpers import escape_markdown
 
 import config
 import utils
@@ -48,16 +49,16 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if not await check_authorization(update, context):
         return
 
-    user_name = update.effective_user.first_name
+    user_name = escape_markdown(update.effective_user.first_name)
     welcome_message = (
         f"👋 Привет, {user_name}!\n\n"
         "Я помогу тебе вести учет посещаемости детей.\n\n"
-        "**Основные команды:**\n"
-        "/start - Показать это приветствие\n"
-        "/upload - Загрузить новый файл Excel с группами и детьми\n"
-        "/mark - Отметить посещаемость на сегодня\n"
-        "/report - Выгрузить отчет о посещаемости\n"
-        "/purge_stale - Удалить данные об отсутствующих группах и детях"
+        "*Основные команды:*\n"
+        "`/start` - Показать это приветствие\n"
+        "`/upload` - Загрузить новый файл Excel с группами и детьми\n"
+        "`/mark` - Отметить посещаемость на сегодня\n"
+        "`/report` - Выгрузить отчет о посещаемости\n"
+        "`/purge_stale` - Удалить данные об отсутствующих группах и детях"
     )
     if update.effective_message:
         await update.effective_message.reply_text(welcome_message, parse_mode=ParseMode.MARKDOWN)
