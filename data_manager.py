@@ -195,6 +195,46 @@ class DataManager:
             #     del self.attendance[date_str]
 
 
+    def purge_stale_entries(self) -> Tuple[int, int]:
+        """Remove groups and children absent from the current Excel file.
+
+        Returns:
+            Tuple[int, int]: (number_of_groups_removed, number_of_children_removed)
+        """
+        current_groups = set(self.groups.keys())
+        removed_groups: Set[str] = set()
+        removed_children = 0
+
+        # First, remove groups that no longer exist
+        for date_str in list(self.attendance.keys()):
+            groups_data = self.attendance[date_str]
+            for group_name in list(groups_data.keys()):
+                if group_name not in current_groups:
+                    removed_groups.add(group_name)
+                    removed_children += len(groups_data[group_name])
+                    del groups_data[group_name]
+            if not groups_data:
+                del self.attendance[date_str]
+
+        # Next, remove children that are not in the current roster
+        for date_str in list(self.attendance.keys()):
+            groups_data = self.attendance[date_str]
+            for group_name, children_set in list(groups_data.items()):
+                allowed_children = set(self.groups.get(group_name, []))
+                before = len(children_set)
+                children_set.intersection_update(allowed_children)
+                removed_children += before - len(children_set)
+                if not children_set:
+                    del groups_data[group_name]
+            if not groups_data:
+                del self.attendance[date_str]
+
+        if removed_groups or removed_children:
+            self.save_attendance()
+
+        return len(removed_groups), removed_children
+
+
     def generate_attendance_report(self, days: int) -> Optional[str]:
         """
         Generates an Excel report for attendance over the last N days.
@@ -233,14 +273,29 @@ class DataManager:
         recorded_dates_sorted = sorted(relevant_attendance.keys())
 
         report_data = []
-        all_children = []
+        # Collect all groups and children from both the current roster
+        # and the attendance history within the requested range. This
+        # ensures that children or entire groups removed from the latest
+        # Excel upload still appear in the report until explicitly
+        # deleted from history.
+        groups_children: Dict[str, Set[str]] = defaultdict(set)
+
+        # Add children from the currently loaded groups
         for group_name, children in self.groups.items():
-            for child_name in children:
-                all_children.append((group_name, child_name))
+            groups_children[group_name].update(children)
+
+        # Add children that appear in the attendance data but may not be
+        # present in the current groups list
+        for groups_data in relevant_attendance.values():
+            for group_name, children_set in groups_data.items():
+                groups_children[group_name].update(children_set)
+
+        for group_name, children_set in groups_children.items():
+            for child_name in sorted(children_set):
                 child_row = {"Группа": group_name, "Имя Ребенка": child_name}
                 for report_date_str in recorded_dates_sorted:
                     present_today = child_name in relevant_attendance.get(report_date_str, {}).get(group_name, set())
-                    child_row[report_date_str] = 1 if present_today else 0 # Use 1 for present, 0 for absent
+                    child_row[report_date_str] = 1 if present_today else 0  # Use 1 for present, 0 for absent
                 report_data.append(child_row)
 
         if not report_data:

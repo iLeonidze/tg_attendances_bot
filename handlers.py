@@ -56,7 +56,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "/start - Показать это приветствие\n"
         "/upload - Загрузить новый файл Excel с группами и детьми\n"
         "/mark - Отметить посещаемость на сегодня\n"
-        "/report - Выгрузить отчет о посещаемости"
+        "/report - Выгрузить отчет о посещаемости\n"
+        "/purge_stale - Удалить данные об отсутствующих группах и детях"
     )
     if update.effective_message:
         await update.effective_message.reply_text(welcome_message, parse_mode=ParseMode.MARKDOWN)
@@ -200,6 +201,20 @@ async def cancel_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if update.effective_message:
         await update.effective_message.reply_text("Операция отменена.")
     return ConversationHandler.END
+
+
+async def purge_stale_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Deletes attendance data for groups/children missing from the current Excel."""
+    if not await check_authorization(update, context):
+        return
+
+    removed_groups, removed_children = data_manager.purge_stale_entries()
+    if update.effective_message:
+        if removed_groups or removed_children:
+            await update.effective_message.reply_text(
+                f"Удалено групп: {removed_groups}, детей: {removed_children}.")
+        else:
+            await update.effective_message.reply_text("Нет устаревших записей для удаления.")
 
 
 # --- Callback Query Handlers ---
@@ -369,6 +384,7 @@ def register_handlers(application) -> None:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("upload", upload_excel_command))
     application.add_handler(CommandHandler("mark", mark_attendance_command))
+    application.add_handler(CommandHandler("purge_stale", purge_stale_command))
 
     # Conversation handler for report generation
     report_conv_handler = ConversationHandler(
